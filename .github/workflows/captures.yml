@@ -1,0 +1,43 @@
+name: Captures partenaires
+
+on:
+  schedule:
+    - cron: '0 10 * * *'   # chaque jour 10:00 UTC = 6:00 Montréal (5:00 en heure d'hiver)
+  workflow_dispatch: {}     # bouton "Run workflow" pour lancer à la main
+
+permissions:
+  contents: write           # le job committe les images dans ce repo
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SITE_DATA_URL: https://krysh.art/data/site-data.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer Playwright + Chromium
+        run: |
+          npm init -y >/dev/null
+          npm install playwright@1 >/dev/null
+          npx playwright install --with-deps chromium
+
+      - name: Capturer les sites partenaires
+        run: node capture.mjs
+
+      - name: Committer les nouvelles captures
+        run: |
+          git config user.name "captures-bot"
+          git config user.email "actions@github.com"
+          git add captures/
+          if git diff --cached --quiet; then
+            echo "Aucun changement -- rien à committer."
+          else
+            git commit -m "Captures du $(date -u +%Y-%m-%d)"
+            git push
+          fi
